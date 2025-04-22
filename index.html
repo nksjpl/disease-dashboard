@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Infectious‑Disease Dashboard</title>
+  <!-- Plotly & PapaParse from free CDNs -->
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    body{font-family:sans-serif;max-width:900px;margin:auto;padding:1rem}
+    label{margin-right:.5rem}
+    select{margin-right:1rem}
+  </style>
+</head>
+<body>
+  <h1>Infectious‑Disease Dashboard</h1>
+
+  <label for="disease">Disease:</label>
+  <select id="disease"></select>
+
+  <label for="county">County:</label>
+  <select id="county"></select>
+
+  <label for="sex">Sex:</label>
+  <select id="sex">
+    <option value="Total">Total</option>
+    <option value="Female">Female</option>
+    <option value="Male">Male</option>
+  </select>
+
+  <div id="chart" style="height:500px"></div>
+
+<script>
+const csvUrl = 'infectious-diseases-by-county-year-and-sex.csv'; // file in same repo
+
+Papa.parse(csvUrl,{
+  download:true,
+  header:true,
+  dynamicTyping:true,
+  complete: res=>{
+     const data = res.data;
+
+     // Populate dropdowns
+     function unique(key){return [...new Set(data.map(d=>d[key]).filter(Boolean))].sort()}
+     unique('Disease').forEach(v=>disease.insertAdjacentHTML('beforeend',`<option>${v}</option>`));
+     unique('County').forEach(v=>county.insertAdjacentHTML('beforeend',`<option>${v}</option>`));
+
+     function draw(){
+        const dis=disease.value, cty=county.value, sex=sexSel.value;
+        const rows=data.filter(d=>d.Disease===dis && d.County===cty && d.Sex===sex);
+        const years=rows.map(d=>d.Year), cases=rows.map(d=>d.Cases);
+        Plotly.react('chart',[{x:years,y:cases,mode:'lines+markers',type:'scatter'}],
+          {title:`${dis} cases in ${cty} (${sex})`,
+           xaxis:{title:'Year'}, yaxis:{title:'Cases'}});
+     }
+     const sexSel=document.getElementById('sex');
+     disease.onchange=county.onchange=sexSel.onchange=draw;
+     disease.selectedIndex=0; county.selectedIndex=0; draw();
+  }
+});
+</script>
+</body>
+</html>
