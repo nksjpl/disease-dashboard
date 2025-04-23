@@ -29,8 +29,39 @@
   </select>
 
   <div id="chart" style="height:500px"></div>
+  <div id="map" style="height:500px;margin-top:2rem"></div>
+
 
 <script>
+  // --------------  MAP SECTION  --------------
+const geoUrl = 'california-counties.geojson';
+let caGeo = null;          // will hold the shapes
+
+fetch(geoUrl)
+  .then(r => r.json())
+  .then(json => {
+     caGeo = json;
+     initMap();            // draw empty map the first time
+     draw();               // also paint the default county
+  });
+
+function initMap(){
+  const outline = {
+    type: 'choropleth',
+    geojson: caGeo,
+    featureidkey: 'properties.NAME', // matches County names in CSV
+    locations: caGeo.features.map(f=>f.properties.NAME),
+    z: Array(caGeo.features.length).fill(0), // all grey
+    colorscale: [[0,'#eeeeee'],[1,'#eeeeee']],
+    hoverinfo:'none',
+    showscale:false,
+    marker:{line:{color:'#888',width:0.5}}
+  };
+  Plotly.newPlot('map',[outline],
+     {geo:{scope:'usa',center:{lat:37.3,lon:-119.5},fitbounds:'locations'},
+      margin:{l:0,r:0,t:0,b:0}});
+}
+
 const csvUrl = 'infectious-diseases-by-county-year-and-sex.csv'; // file in same repo
 
 Papa.parse(csvUrl,{
@@ -46,13 +77,35 @@ Papa.parse(csvUrl,{
      unique('County').forEach(v=>county.insertAdjacentHTML('beforeend',`<option>${v}</option>`));
 
      function draw(){
-        const dis=disease.value, cty=county.value, sex=sexSel.value;
-        const rows=data.filter(d=>d.Disease===dis && d.County===cty && d.Sex===sex);
-        const years=rows.map(d=>d.Year), cases=rows.map(d=>d.Cases);
-        Plotly.react('chart',[{x:years,y:cases,mode:'lines+markers',type:'scatter'}],
-          {title:`${dis} cases in ${cty} (${sex})`,
-           xaxis:{title:'Year'}, yaxis:{title:'Cases'}});
-     }
+   const dis=disease.value, cty=county.value, sex=sexSel.value;
+
+   // ---------- CHART (unchanged) ----------
+   const rows=data.filter(d=>d.Disease===dis && d.County===cty && d.Sex===sex);
+   Plotly.react('chart',
+     [{x:rows.map(d=>d.Year), y:rows.map(d=>d.Cases),
+       mode:'lines+markers', type:'scatter'}],
+     {title:`${dis} cases in ${cty} (${sex})`,
+      xaxis:{title:'Year'}, yaxis:{title:'Cases'}});
+
+   // ---------- MAP highlight (NEW) ----------
+   if(!caGeo) return; // geojson hasn’t loaded yet
+   // one choropleth trace that colours only the chosen county
+   const highlight = {
+     type:'choropleth',
+     geojson: caGeo,
+     featureidkey:'properties.NAME',
+     locations:[cty],                // the county to fill
+     z:[1],
+     colorscale:[[0,'#1f77b4'],[1,'#1f77b4']], // Plotly default blue
+     showscale:false,
+     marker:{line:{color:'#1f77b4',width:1}}
+   };
+   // the first trace (index 0) is the grey outline we drew in initMap()
+   Plotly.react('map',[Plotly.d3.select('#map').data()[0], highlight],
+      {geo:{scope:'usa',center:{lat:37.3,lon:-119.5},fitbounds:'locations'},
+       margin:{l:0,r:0,t:0,b:0}});
+}
+
      const sexSel=document.getElementById('sex');
      disease.onchange=county.onchange=sexSel.onchange=draw;
      disease.selectedIndex=0; county.selectedIndex=0; draw();
